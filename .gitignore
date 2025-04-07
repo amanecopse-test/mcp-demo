@@ -1,2 +1,6 @@
 .venv
 .idea
+.env
+.coverage
+__pycache__
+pytest_gen/**/*_test.py

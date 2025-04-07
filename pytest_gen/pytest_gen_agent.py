@@ -1,19 +1,24 @@
 import asyncio
+import os
 import textwrap
 
+from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from pydantic import BaseModel
 
 base_url = "https://my-kaggle-ollama-app.serveo.net"
-model = ChatOllama(model="mistral-small", base_url=base_url)
+# model = ChatOllama(model="mistral-small", base_url=base_url)
+load_dotenv()
+model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", api_key=os.environ.get("GEMINI_KEY"))
 server_params = StdioServerParameters(
     command="python",
-    args=["pytest_gen_server.py"],
+    args=["pytest_gen/pytest_gen_server.py"],
 )
 
 
@@ -41,7 +46,7 @@ async def run():
                 )),
                 HumanMessage(textwrap.dedent(
                     """
-                    Source code path: ./mock_project/calculator.py
+                    Source code path: ./pytest_gen/mock_project/calculator.py
                     """
                 )),
             ]})
@@ -50,7 +55,7 @@ async def run():
                     print(e.content)
                 if hasattr(e, 'tool_calls'):
                     print(e.tool_calls)
-
+            print(agent_response["structured_response"].test_code)
 
 if __name__ == "__main__":
     asyncio.run(run())
