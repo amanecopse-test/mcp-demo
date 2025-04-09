@@ -1,21 +1,31 @@
 import asyncio
-import os
+import optparse
 import textwrap
 
-from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain_ollama import ChatOllama
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from pydantic import BaseModel
 
-base_url = "https://my-kaggle-ollama-app.serveo.net"
-# model = ChatOllama(model="mistral-small", base_url=base_url)
-load_dotenv()
-model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", api_key=os.environ.get("GEMINI_KEY"))
+opt_parser = optparse.OptionParser()
+opt_parser.add_option("--ollama", action="store_true", default=False, dest="ollama")
+opt_parser.add_option("--ollama-url", default="https://my-kaggle-ollama-app.serveo.net", dest="ollama_url")
+opt_parser.add_option("--ollama-model", default="mistral-small", dest="ollama_model")
+opt_parser.add_option("--gemini", action="store_true", default=False, dest="gemini")
+opt_parser.add_option("--gemini-key", default=None, dest="gemini_key")
+opt_parser.add_option("--gemini-model", default="gemini-2.0-flash", dest="gemini_model")
+opt_parser.add_option("--source-path", default="./pytest_gen/mock_project/calculator.py", dest="source_path")
+options, args = opt_parser.parse_args()
+
+if options.ollama:
+    model = ChatOllama(model="mistral-small", base_url=options.ollama_url)
+if options.gemini:
+    model = ChatGoogleGenerativeAI(model=options.gemini_model, api_key=options.gemini_key)
+
 server_params = StdioServerParameters(
     command="python",
     args=["pytest_gen/pytest_gen_server.py"],
@@ -36,7 +46,8 @@ async def run():
             agent = create_react_agent(model, tools, response_format=Response, prompt="")
             agent_response = await agent.ainvoke({"messages": [
                 SystemMessage(textwrap.dedent(
-                    """
+                    f"""
+                    Use tools: {tools}
                     Write and verify the pytest unit test of Python source code according to the instructions below.
                     1. Gets the Python source code for the specified path.
                     2. Create a pytest test code and write it as a py file in the same path as the source code (in the format xxx_test.py).
@@ -45,8 +56,8 @@ async def run():
                     """
                 )),
                 HumanMessage(textwrap.dedent(
-                    """
-                    Source code path: ./pytest_gen/mock_project/calculator.py
+                    f"""
+                    Source code path: {options.source_path}
                     """
                 )),
             ]})
@@ -55,7 +66,9 @@ async def run():
                     print(e.content)
                 if hasattr(e, 'tool_calls'):
                     print(e.tool_calls)
+            print("-------------------------Result-------------------------")
             print(agent_response["structured_response"].test_code)
+
 
 if __name__ == "__main__":
     asyncio.run(run())
